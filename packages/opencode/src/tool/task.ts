@@ -129,7 +129,7 @@ export const TaskTool = Tool.define("task", async (ctx) => {
 
       // Default timeout: 5 minutes, configurable via config.experimental.task_timeout_ms
       const DEFAULT_TASK_TIMEOUT_MS = 5 * 60 * 1000
-      const timeoutMs = (config.experimental as any)?.task_timeout_ms ?? DEFAULT_TASK_TIMEOUT_MS
+      const timeoutMs = config.experimental?.task_timeout_ms ?? DEFAULT_TASK_TIMEOUT_MS
 
       log.info("task: starting subagent", {
         sessionID: ctx.sessionID,
