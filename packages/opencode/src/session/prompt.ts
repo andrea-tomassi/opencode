@@ -290,8 +290,6 @@ export namespace SessionPrompt {
     let structuredOutput: unknown | undefined
 
     let step = 0
-    let emptyStopRetries = 0
-    const MAX_EMPTY_STOP_RETRIES = 3
     const session = await Session.get(sessionID)
     while (true) {
       SessionStatus.set(sessionID, { type: "busy" })
@@ -317,44 +315,13 @@ export namespace SessionPrompt {
       }
 
       if (!lastUser) throw new Error("No user message found in stream. This should never happen.")
-
-      // Detect empty "stop" — likely a transient LLM glitch (e.g., vLLM returning EOS with no content).
-      // When the last assistant message has finish="stop" but produced ≤1 output token and has no
-      // text or tool-call parts, we treat it as a recoverable error and retry instead of exiting.
-      const lastAssistantParts = lastAssistant
-        ? msgs.find((m) => m.info.id === lastAssistant!.id)?.parts ?? []
-        : []
-      const isEmptyStop =
-        lastAssistant?.finish === "stop" &&
-        (lastAssistant.tokens?.output ?? 0) <= 1 &&
-        !lastAssistantParts.some((p) => p.type === "text" || p.type === "tool")
-
-      if (isEmptyStop) {
-        emptyStopRetries++
-        if (emptyStopRetries > MAX_EMPTY_STOP_RETRIES) {
-          log.warn("empty stop retry limit reached — exiting loop", {
-            sessionID,
-            emptyStopRetries,
-          })
-          break
-        }
-        log.warn("empty stop detected — retrying (transient LLM glitch suspected)", {
-          sessionID,
-          attempt: emptyStopRetries,
-          tokens: lastAssistant?.tokens,
-        })
-        // Small delay before retrying to avoid hammering a struggling backend
-        await new Promise((resolve) => setTimeout(resolve, 2000))
-      } else if (
+      if (
         lastAssistant?.finish &&
         !["tool-calls", "unknown"].includes(lastAssistant.finish) &&
         lastUser.id < lastAssistant.id
       ) {
         log.info("exiting loop", { sessionID })
         break
-      } else {
-        // Successful step — reset empty-stop retry counter
-        emptyStopRetries = 0
       }
 
       step++
